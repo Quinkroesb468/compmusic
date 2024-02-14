@@ -14,34 +14,9 @@ Sys.setenv(SPOTIFY_CLIENT_SECRET = Sys.getenv("SPOTIFY_CLIENT_SECRET"))
 access_token <- get_spotify_access_token()
 
 playlist_id <- "1RhRAqYJA1mwmBtk4mXRju"
+username <- "quintijn.kroesbergen"
 
-# Fetch all playlist tracks
-all_tracks_df <- data.frame()
-offset <- 0
-total_tracks <- 284  
-
-# Fetch tracks in batches of 100
-while (offset < total_tracks) {
-  temp_tracks <- get_playlist_tracks(playlist_id = playlist_id, limit = 100, offset = offset, authorization = access_token)
-  all_tracks_df <- rbind(all_tracks_df, temp_tracks)
-  offset <- offset + 100
-  if (nrow(temp_tracks) < 100) {
-    break  # Exit loop if last batch of tracks is fetched
-  }
-}
-
-# Extract track IDs
-track_ids <- all_tracks_df$track.id
-
-# Initialize an empty data frame for audio features
-all_audio_features_df <- data.frame()
-
-# Fetch audio features for all track IDs
-for (i in seq(1, length(track_ids), by = 100)) {
-  batch_track_ids <- track_ids[i:min(i+99, length(track_ids))]
-  temp_features <- get_track_audio_features(batch_track_ids, authorization = access_token)
-  all_audio_features_df <- rbind(all_audio_features_df, temp_features)
-}
+all_audio_features_df <- get_playlist_audio_features(username, playlist_uris = c(playlist_id), authorization = access_token)
 
 # Assign genres
 all_audio_features_df$genre <- NA
