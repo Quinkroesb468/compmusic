@@ -7,8 +7,8 @@ library(ggforce)
 
 library(tibble)
 # Set Spotify API credentials
-Sys.setenv(SPOTIFY_CLIENT_ID = "8d5f768621d941aa9cd172a7a56d2bba")
-Sys.setenv(SPOTIFY_CLIENT_SECRET = "1d506845301544549b103282e036e6da")
+Sys.setenv(SPOTIFY_CLIENT_ID = Sys.getenv("SPOTIFY_CLIENT_ID"))
+Sys.setenv(SPOTIFY_CLIENT_SECRET = Sys.getenv("SPOTIFY_CLIENT_SECRET"))
 
 # Authenticate with Spotify
 access_token <- get_spotify_access_token()
