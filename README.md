@@ -9,6 +9,11 @@ My corpus consists of dozens of songs for every genre, aiming for a diverse rang
 Typical songs for each genre are: Ben Bohmer - Beyond Beliefs for Melodic House, Rampa - Champion for Afro House, and Mahalo - Home for Deep House, embodying each genre's core values. Atypical songs like Notre Dame - Yumi - edit for Melodic House, Sebjak - Somebody - edit for Afro House, and Hannah Laing - Good Love for Deep House, are chosen for their unusual rhythm and tempo, offering additional insights into each genre.
 
 ## Plot Description
+
+## Plot Description
+
+![Energy vs Valence for Each Genre](/Rplot.png "Energy vs Valence for Each Genre")
+
 This plot is a scatterplot displaying the relationship between 'Energy' and 'Valence' for the three different genres of music: Afro House, Deep House, and Melodic House. Each panel represents one of the genres, plotted with 'Energy' on the x-axis and 'Valence' on the y-axis. The data points for Afro House are colored blue, for Deep House they are red, and for Melodic House they are green. The spread of data points in each genre-specific panel indicates the distribution of the tracks according to their energy and valence characteristics within that genre.
 
 ## Why do I think it's interesting?
