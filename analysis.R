@@ -4,8 +4,8 @@ library(ggplot2)
 library(reshape2)
 library(tidyr)
 library(ggforce)
-
 library(tibble)
+
 # Set Spotify API credentials
 Sys.setenv(SPOTIFY_CLIENT_ID = Sys.getenv("SPOTIFY_CLIENT_ID"))
 Sys.setenv(SPOTIFY_CLIENT_SECRET = Sys.getenv("SPOTIFY_CLIENT_SECRET"))
@@ -41,7 +41,8 @@ ggplot(all_audio_features_df, aes(x = energy, y = valence)) +
   facet_wrap(~ genre) +  # Create a separate plot for each genre
   labs(title = "Energy vs Valence for Each Genre",
        x = "Energy",
-       y = "Valence") +
+       y = "Valence",
+       color = "Genre") +
   scale_color_manual(values = c('Afro House' = 'blue', 'Deep House' = 'red', 'Melodic House' = 'green')) +
   theme_minimal() +
   theme(legend.position = "right",
