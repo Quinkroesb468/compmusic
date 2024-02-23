@@ -5,6 +5,8 @@ library(reshape2)
 library(tidyr)
 library(ggforce)
 library(tibble)
+library(plotly)
+library(purrr)
 
 # Set Spotify API credentials
 Sys.setenv(SPOTIFY_CLIENT_ID = Sys.getenv("SPOTIFY_CLIENT_ID"))
@@ -60,6 +62,59 @@ genre_stats <- all_audio_features_df %>%
 # display genre stats
 print(genre_stats)
 
+# Assuming 'all_audio_features_df' is your dataset and 'energy' is the column of interest
+# Assuming 'all_audio_features_df' is your dataset and 'tempo' is the column of interest
+Q1_tempo <- quantile(all_audio_features_df$tempo, 0.25)
+Q3_tempo <- quantile(all_audio_features_df$tempo, 0.75)
+IQR_tempo <- Q3_tempo - Q1_tempo
+
+# Define bounds for outliers
+lower_bound_tempo <- Q1_tempo - 1.5 * IQR_tempo
+upper_bound_tempo <- Q3_tempo + 1.5 * IQR_tempo
+
+# Identify tempo outliers
+tempo_outliers <- subset(all_audio_features_df, tempo < lower_bound_tempo | tempo > upper_bound_tempo)
+
+# Assuming tempo_outliers is already defined and contains the outlier tracks
+# Get the track name of the last track in tempo_outliers
+last_track_name <- tail(tempo_outliers$track.name, 1)
+
+# Display the name of the last track
+print(last_track_name)
+
+track_id <- "1MvLmHeLkaNgUScgbUVnWJ"
+audio_analysis <- get_track_audio_analysis(track_id, authorization = access_token)
+# Assuming `audio_analysis` has already been retrieved
+str(audio_analysis$segments)
+segments <- audio_analysis$segments
 
 
+# Initialize an empty data frame to store the long-format pitch data
+pitch_data_long <- tibble()
+
+# Loop through each segment to transform pitch data into a long format
+for(i in 1:nrow(segments)) {
+  segment_pitch_data <- tibble(
+    start = segments$start[i],
+    duration = segments$duration[i],
+    pitch_class = c("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"),
+    intensity = segments$pitches[[i]]
+  )
+  pitch_data_long <- bind_rows(pitch_data_long, segment_pitch_data)
+}
+
+# Now, pitch_data_long should be in the correct format for plotting
+
+print(head(pitch_data_long))
+ggplot(pitch_data_long, aes(x = start, y = pitch_class, fill = intensity)) +
+  geom_tile() + # Use geom_tile() to create the heatmap
+  scale_fill_gradient(low = "blue", high = "red") + # Customize the color gradient
+  labs(title = "Pitch Class Intensity Over Time",
+       x = "Time (s)",
+       y = "Pitch Class",
+       fill = "Intensity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), # Rotate x-axis labels if needed
+        axis.title = element_text(size = 12),
+        title = element_text(size = 14))
 
