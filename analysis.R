@@ -7,6 +7,8 @@ library(ggforce)
 library(tibble)
 library(plotly)
 library(purrr)
+library(compmus)
+
 
 # Set Spotify API credentials
 Sys.setenv(SPOTIFY_CLIENT_ID = Sys.getenv("SPOTIFY_CLIENT_ID"))
@@ -117,4 +119,44 @@ ggplot(pitch_data_long, aes(x = start, y = pitch_class, fill = intensity)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1), # Rotate x-axis labels if needed
         axis.title = element_text(size = 12),
         title = element_text(size = 14))
+
+
+track_audio_analysis <- get_tidy_audio_analysis(track_id) 
+
+
+# Example adapted for your selected track (assuming 'track_audio_analysis' contains your data)
+bzt <- track_audio_analysis |>
+  compmus_align(bars, segments) |>
+  select(bars) |>
+  unnest(bars) |>
+  mutate(
+    pitches = map(segments, compmus_summarise, pitches, method = "acentre", norm = "manhattan"),
+    timbre = map(segments, compmus_summarise, timbre, method = "mean")
+  )
+
+# Create self-similarity matrices for both chroma and timbre
+ssm_data <- bind_rows(
+  bzt |> compmus_self_similarity(pitches, "aitchison") |> mutate(d = d / max(d), type = "Chroma"),
+  bzt |> compmus_self_similarity(timbre, "euclidean") |> mutate(d = d / max(d), type = "Timbre")
+)
+
+# Plotting
+ssm_data |>
+  ggplot(
+    aes(
+      x = xstart + xduration / 2,
+      width = xduration,
+      y = ystart + yduration / 2,
+      height = yduration,
+      fill = d
+    )
+  ) +
+  geom_tile() +
+  coord_fixed() +
+  facet_wrap(~type) +
+  scale_fill_viridis_c(option = "E", guide = "none") +
+  theme_classic() + 
+  labs(x = "", y = "")
+
+
 

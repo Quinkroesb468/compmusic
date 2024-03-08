@@ -1,0 +1,16 @@
+/* File: dashboard-styles.css */
+
+/* Style for the discussion column */
+.discussion-column {
+    background-color: white;
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+    transition: 0.3s;
+    padding: 10px; /* Adjust padding if needed */
+  }
+  
+  /* Style for the plot column, if needed */
+  .plot-column {
+    padding: 10px; /* Adjust padding if needed */
+    text-align: left;
+  }
+  
