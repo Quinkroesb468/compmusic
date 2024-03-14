@@ -41,9 +41,15 @@ all_audio_features_df$genre[1:107] <- 'Afro House'
 all_audio_features_df$genre[108:206] <- 'Deep House'
 all_audio_features_df$genre[207:284] <- 'Melodic House'
 
+
+muted_colors <- c('Afro House' = '#377eb8',  # Muted blue
+                  'Deep House' = '#e41a1c',  # Muted red
+                  'Melodic House' = '#4daf4a')  # Muted green
+
 ```
 
-# Histograms of keys for the genres
+
+# The Heartbeat of House: Tempo as Genre Signature
 ## Visualisation
 
 Column {data-width=500 .plot-column}
@@ -51,65 +57,64 @@ Column {data-width=500 .plot-column}
 
 ```{r}
 
-key_names <- c('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
-all_audio_features_df$key_name <- key_names[all_audio_features_df$key + 1]
+mode_tempi <- all_audio_features_df %>%
+  group_by(genre, tempo) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  # Get the row with the maximum count for each genre
+  slice_max(order_by = count, n = 1) %>%
+  ungroup()
 
-# Calculate the count of tracks in each key by genre
-counts <- all_audio_features_df %>%
-  group_by(genre, key_name) %>%
-  summarise(count = n(), .groups = 'drop')
-
-# Calculate the total count of tracks in each genre
-total_counts <- counts %>%
-  group_by(genre) %>%
-  summarise(total = sum(count), .groups = 'drop')
-
-# Join the counts with total counts and calculate the proportion
-counts <- counts %>%
-  left_join(total_counts, by = "genre") %>%
-  mutate(proportion = count / total)
-
-# Calculate the most popular key for each genre
-most_popular_keys <- counts %>%
-  group_by(genre) %>%
-  top_n(1, wt = proportion) %>%
-  ungroup() %>%
-  select(genre, key_name, proportion)
-
-
-ymax_limit <- max(counts$proportion) * 1.3
-muted_colors <- c('Afro House' = '#377eb8',  # Muted blue
-                  'Deep House' = '#e41a1c',  # Muted red
-                  'Melodic House' = '#4daf4a')  # Muted green
 
 # Create the histogram plot
-p <- ggplot(counts, aes(x = key_name, y = proportion, fill = genre)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  labs(title = "Normalized Distribution of Keys by Genre",
-       x = "Musical Key",
-       y = "Proportion of Tracks") +
+tempo_histogram <- ggplot(all_audio_features_df, aes(x = tempo, fill = genre)) +
+  geom_histogram(binwidth = 2, alpha = 0.6, position = "identity") +  # Adjust binwidth as necessary
+  labs(title = "Histogram of Tempi by Genre",
+       x = "Tempo (BPM)",
+       y = "Count of Tracks") +
   scale_fill_manual(values = muted_colors) +
   theme_minimal() +
   theme(legend.position = "bottom") +
-  ylim(0, ymax_limit)  # Extend y-axis limit
+  facet_wrap(~ genre, scales = "free_y")  # Separate histogram for each genre
 
-# Add annotations for the most popular keys
-p + geom_text(data = most_popular_keys, aes(x = key_name, y = proportion, label = key_name),
-              position = position_dodge(width = 0.9), vjust = -0.5, color = "black", fontface = "bold")
-
-
+# Print the plot
+print(tempo_histogram)
 
 
 ```
 
+```{r}
+
+# Calculate the average BPM for each genre
+average_bpm <- all_audio_features_df %>%
+  group_by(genre) %>%
+  summarize(average_tempo = mean(tempo, na.rm = TRUE)) %>%
+  ungroup()
+
+# Create the text output for the average BPM in each genre
+average_bpm_text <- average_bpm %>%
+  mutate(text = paste("<b>", genre, "average BPM:", round(average_tempo, 2), "</b><br>")) %>%
+  pull(text) %>%
+  paste(collapse = "")
+
+```
+
+
 Column {data-width=500 .discussion-column}
 -------
 
-The analysis of the normalized distribution of musical keys across Afro House, Deep House, and Melodic House genres reveals some intriguing patterns. C# emerges as the predominant key in both Afro House and Melodic House, indicating a preference for its sound qualities in these genres. The choice of key can affect the mood and energy of the music. C#, being a semi-tone higher than C, is often considered to have a bright and lively quality which might resonate well with the energetic and emotive nature of Afro House and the ethereal, uplifting atmosphere of Melodic House.
+```{r, echo=FALSE, results='asis'}
+# Print the pre-formatted text with HTML bold tags
+cat(average_bpm_text)
 
-In contrast, G is the most popular key in Deep House, which may underscore the genre's tendency towards a deeper, more mellow sonic palette. The key of G is often associated with a warm and inviting tone, which complements Deep House's soulful and laid-back vibe. This key can provide a comfortable harmonic foundation for the smooth grooves and relaxed rhythms characteristic of this genre.
+```
+In electronic music, a track's tempo is its pulse – the driving force that sets the mood on the dance floor.  Within the world of house music, even subtle changes in beats per minute (BPM) dramatically alter the atmosphere. Let's dive into three subgenres to see how:
 
-The preference for these keys suggests that artists and producers are likely to lean towards certain tonalities that align with the expressive needs of their genre. While this trend does not dictate the creative choices made in music production, it highlights the subtle ways in which key selection can contribute to genre-specific atmospheres and listener expectations.
+- **Afro House**: Infused with traditional African rhythms, Afro House thrums with an average of 121 BPM. This tempo creates a vibrant yet smooth energy, perfect for dance styles that emphasize fluidity and percussive movement.
+- **Deep House**: With a slightly faster pulse (126 BPM on average), Deep House caters to the club scene. Soulful melodies and a driving bassline thrive at this elevated tempo, encouraging sustained, energetic movement.
+- **Melodic House**: At an average of 123 BPM, Melodic House finds a middle ground between the other two subgenres. The tempo allows space for both reflective moments and upbeat dance sequences. This complements the genre's focus on emotive melodies and atmospheric soundscapes, creating a vibe that's captivating for both listeners and dancers.
+
+From the vibrant energy of Afro House to the pulsating power of Deep House and the evocative soundscapes of Melodic House,  tempo plays a crucial role in shaping the unique feel of each subgenre.
+
 
 
 # Introduction of Corpus
@@ -200,7 +205,76 @@ print(chroma_plot)
 Column {data-width=250 .discussion-column}
 -------
 
-This plot is a heatmap that visualizes the intensity of pitch classes over time within the song "Breathing" by Ben Böhmer. The choice for this song was not because it was a pitch related outlier, but because it was a tempo related outlier. The horizontal axis represents time in seconds, and the vertical axis indicates the pitch classes. Intensity levels are depicted through a color gradient, transitioning from blue for lower intensities to red for higher intensities. 
+This plot is a heatmap that visualizes the intensity of pitch classes over time within the song "Breathing" by Ben Böhmer. The choice for this song was not because it was a pitch related outlier, but because it was a tempo related outlier. The horizontal axis represents time in seconds, and the vertical axis indicates the pitch classes. Intensity levels are depicted through a color gradient, transitioning from blue for lower intensities to yellow for higher intensities. 
+
+# Histograms of keys for the genres
+## Visualisation
+
+Column {data-width=500 .plot-column}
+-------
+
+
+```{r}
+
+key_names <- c('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
+all_audio_features_df$key_name <- key_names[all_audio_features_df$key + 1]
+
+# Calculate the count of tracks in each key by genre
+counts <- all_audio_features_df %>%
+  group_by(genre, key_name) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Calculate the total count of tracks in each genre
+total_counts <- counts %>%
+  group_by(genre) %>%
+  summarise(total = sum(count), .groups = 'drop')
+
+# Join the counts with total counts and calculate the proportion
+counts <- counts %>%
+  left_join(total_counts, by = "genre") %>%
+  mutate(proportion = count / total)
+
+# Calculate the most popular key for each genre
+most_popular_keys <- counts %>%
+  group_by(genre) %>%
+  top_n(1, wt = proportion) %>%
+  ungroup() %>%
+  select(genre, key_name, proportion)
+
+
+ymax_limit <- max(counts$proportion) * 1.3
+
+
+# Create the histogram plot
+p <- ggplot(counts, aes(x = key_name, y = proportion, fill = genre)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "Normalized Distribution of Keys by Genre",
+       x = "Musical Key",
+       y = "Proportion of Tracks") +
+  scale_fill_manual(values = muted_colors) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  ylim(0, ymax_limit)  # Extend y-axis limit
+
+# Add annotations for the most popular keys
+p + geom_text(data = most_popular_keys, aes(x = key_name, y = proportion, label = key_name),
+              position = position_dodge(width = 0.9), vjust = -0.5, color = "black", fontface = "bold")
+
+
+
+
+```
+
+
+Column {data-width=500 .discussion-column}
+-------
+
+The analysis of the normalized distribution of musical keys across Afro House, Deep House, and Melodic House genres reveals some intriguing patterns. C# emerges as the predominant key in both Afro House and Melodic House, indicating a preference for its sound qualities in these genres. The choice of key can affect the mood and energy of the music. C#, being a semi-tone higher than C, is often considered to have a bright and lively quality which might resonate well with the energetic and emotive nature of Afro House and the ethereal, uplifting atmosphere of Melodic House.
+
+In contrast, G is the most popular key in Deep House, which may underscore the genre's tendency towards a deeper, more mellow sonic palette. The key of G is often associated with a warm and inviting tone, which complements Deep House's soulful and laid-back vibe. This key can provide a comfortable harmonic foundation for the smooth grooves and relaxed rhythms characteristic of this genre.
+
+The preference for these keys suggests that artists and producers are likely to lean towards certain tonalities that align with the expressive needs of their genre. While this trend does not dictate the creative choices made in music production, it highlights the subtle ways in which key selection can contribute to genre-specific atmospheres and listener expectations.
+
 
 
 
