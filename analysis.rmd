@@ -19,6 +19,8 @@ library(ggforce)
 library(tibble)
 library(purrr)
 library(compmus)
+library(randomForest)
+library(caret)
 ```
 
 
@@ -49,52 +51,40 @@ muted_colors <- c('Afro House' = '#377eb8',  # Muted blue
 ```
 
 
-# The Heartbeat of House: Tempo as Genre Signature
-## Visualisation
+# Decoding the Dance Floor: Machine Learning Insights into House Subgenres
 
-Column {data-width=500 .plot-column}
+Column {data-width=750 .plot-column}
 -------
 
 ```{r}
 
-mode_tempi <- all_audio_features_df %>%
-  group_by(genre, tempo) %>%
-  summarise(count = n(), .groups = 'drop') %>%
-  # Get the row with the maximum count for each genre
-  slice_max(order_by = count, n = 1) %>%
-  ungroup()
+# Set seed for reproducibility
+set.seed(123)
 
+# Define the target and features
+target <- "genre"
+selected_features <- c("danceability", "energy", "key", "loudness", "mode", 
+                       "speechiness", "acousticness", "instrumentalness", 
+                       "liveness", "valence", "tempo")
 
-# Create the histogram plot
-tempo_histogram <- ggplot(all_audio_features_df, aes(x = tempo, fill = genre)) +
-  geom_histogram(binwidth = 2, alpha = 0.6, position = "identity") +  # Adjust binwidth as necessary
-  labs(title = "Histogram of Tempi by Genre",
-       x = "Tempo (BPM)",
-       y = "Count of Tracks") +
-  scale_fill_manual(values = muted_colors) +
-  theme_minimal() +
-  theme(legend.position = "bottom") +
-  facet_wrap(~ genre, scales = "free_y")  # Separate histogram for each genre
+# Splitting the data into training and testing sets
+indexes <- createDataPartition(all_audio_features_df[[target]], p = .8, list = FALSE)
+train_data <- all_audio_features_df[indexes, ]
+test_data <- all_audio_features_df[-indexes, ]
 
-# Print the plot
-print(tempo_histogram)
+# Select only the desired features plus the target variable for both sets
+train_data_selected <- train_data[, c(target, selected_features)]
+test_data_selected <- test_data[, c(target, selected_features)]
 
+# Convert genre to a factor
+train_data_selected[[target]] <- as.factor(train_data_selected[[target]])
+test_data_selected[[target]] <- as.factor(test_data_selected[[target]])
 
-```
+# Train the Random Forest model on the selected features
+rf_model <- randomForest(as.formula(paste(target, "~ .")), data=train_data_selected, 
+                         importance=TRUE, ntree=500)
 
-```{r}
-
-# Calculate the average BPM for each genre
-average_bpm <- all_audio_features_df %>%
-  group_by(genre) %>%
-  summarize(average_tempo = mean(tempo, na.rm = TRUE)) %>%
-  ungroup()
-
-# Create the text output for the average BPM in each genre
-average_bpm_text <- average_bpm %>%
-  mutate(text = paste("<b>", genre, "average BPM:", round(average_tempo, 2), "</b><br>")) %>%
-  pull(text) %>%
-  paste(collapse = "")
+varImpPlot(rf_model, type=2, main="Feature Importance")
 
 ```
 
@@ -102,19 +92,43 @@ average_bpm_text <- average_bpm %>%
 Column {data-width=500 .discussion-column}
 -------
 
-```{r, echo=FALSE, results='asis'}
-# Print the pre-formatted text with HTML bold tags
-cat(average_bpm_text)
+```{r}
+
+# Predictions on the test set
+predictions <- predict(rf_model, newdata=test_data_selected)
+
+# Evaluation with confusion matrix
+confusion <- confusionMatrix(predictions, test_data_selected[[target]])
+
+# Print the confusion matrix
+print(confusion)
+
+# Extract overall accuracy from the confusion matrix
+accuracy <- confusion$overall['Accuracy']
+
+
+
+
+
+
+
 
 ```
-In electronic music, a track's tempo is its pulse – the driving force that sets the mood on the dance floor.  Within the world of house music, even subtle changes in beats per minute (BPM) dramatically alter the atmosphere. Let's dive into three subgenres to see how:
 
-- **Afro House**: Infused with traditional African rhythms, Afro House thrums with an average of 121 BPM. This tempo creates a vibrant yet smooth energy, perfect for dance styles that emphasize fluidity and percussive movement.
-- **Deep House**: With a slightly faster pulse (126 BPM on average), Deep House caters to the club scene. Soulful melodies and a driving bassline thrive at this elevated tempo, encouraging sustained, energetic movement.
-- **Melodic House**: At an average of 123 BPM, Melodic House finds a middle ground between the other two subgenres. The tempo allows space for both reflective moments and upbeat dance sequences. This complements the genre's focus on emotive melodies and atmospheric soundscapes, creating a vibe that's captivating for both listeners and dancers.
 
-From the vibrant energy of Afro House to the pulsating power of Deep House and the evocative soundscapes of Melodic House,  tempo plays a crucial role in shaping the unique feel of each subgenre.
+Column {data-width=400 .discussion-column}
+-------
+```{r}
+cat(sprintf("Accuracy: %.2f%%", accuracy * 100))
+```
 
+This analysis employs a Random Forest algorithm to explore genre classification. We've trained our model to differentiate between the nuances of Afro House, Deep House, and Melodic House, drawing insight from a diverse range of audio features. By analyzing elements like tempo, energy, danceability, and more, we seek to pinpoint the factors that determine a song's genre assignment.
+
+The Random Forest model achieves a solid accuracy of 76.36%. This demonstrates its ability to correctly identify genres more often than not, offering a useful tool for music analysis and classification. Removing features based on the feature selection did not improve the accuracy so therefore I have included all of the features.
+
+Our feature importance plot reveals the most influential variables in the model's decision-making. Unsurprisingly, tempo stands as a key factor, confirming the importance of BPM in electronic music genres. Interestingly, instrumentalness and speechiness also contribute significantly, highlighting the complex interplay of elements in genre definition.
+
+Overall, the classifier's performance and these insights help us dissect the characteristic elements of house music subgenres. Such understanding could potentially improve music recommendation systems and offer guidance for music production.
 
 
 # Introduction of Corpus
@@ -341,3 +355,70 @@ Column {data-width=250 .discussion-column}
 -------
 
 These are the self-similarity matrices for Chroma and Timbre for our tempo outlier 'Breathing' by Ben Bohmer.
+
+
+# The Heartbeat of House: Tempo as Genre Signature
+## Visualisation
+
+Column {data-width=500 .plot-column}
+-------
+
+```{r}
+
+mode_tempi <- all_audio_features_df %>%
+  group_by(genre, tempo) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  # Get the row with the maximum count for each genre
+  slice_max(order_by = count, n = 1) %>%
+  ungroup()
+
+
+# Create the histogram plot
+tempo_histogram <- ggplot(all_audio_features_df, aes(x = tempo, fill = genre)) +
+  geom_histogram(binwidth = 2, alpha = 0.6, position = "identity") +  # Adjust binwidth as necessary
+  labs(title = "Histogram of Tempi by Genre",
+       x = "Tempo (BPM)",
+       y = "Count of Tracks") +
+  scale_fill_manual(values = muted_colors) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ genre, scales = "free_y")  # Separate histogram for each genre
+
+# Print the plot
+print(tempo_histogram)
+
+
+```
+
+```{r}
+
+# Calculate the average BPM for each genre
+average_bpm <- all_audio_features_df %>%
+  group_by(genre) %>%
+  summarize(average_tempo = mean(tempo, na.rm = TRUE)) %>%
+  ungroup()
+
+# Create the text output for the average BPM in each genre
+average_bpm_text <- average_bpm %>%
+  mutate(text = paste("<b>", genre, "average BPM:", round(average_tempo, 2), "</b><br>")) %>%
+  pull(text) %>%
+  paste(collapse = "")
+
+```
+
+
+Column {data-width=500 .discussion-column}
+-------
+
+```{r, echo=FALSE, results='asis'}
+# Print the pre-formatted text with HTML bold tags
+cat(average_bpm_text)
+
+```
+In electronic music, a track's tempo is its pulse – the driving force that sets the mood on the dance floor.  Within the world of house music, even subtle changes in beats per minute (BPM) dramatically alter the atmosphere. Let's dive into three subgenres to see how:
+
+- **Afro House**: Infused with traditional African rhythms, Afro House thrums with an average of 121 BPM. This tempo creates a vibrant yet smooth energy, perfect for dance styles that emphasize fluidity and percussive movement.
+- **Deep House**: With a slightly faster pulse (126 BPM on average), Deep House caters to the club scene. Soulful melodies and a driving bassline thrive at this elevated tempo, encouraging sustained, energetic movement.
+- **Melodic House**: At an average of 123 BPM, Melodic House finds a middle ground between the other two subgenres. The tempo allows space for both reflective moments and upbeat dance sequences. This complements the genre's focus on emotive melodies and atmospheric soundscapes, creating a vibe that's captivating for both listeners and dancers.
+
+From the vibrant energy of Afro House to the pulsating power of Deep House and the evocative soundscapes of Melodic House,  tempo plays a crucial role in shaping the unique feel of each subgenre.
