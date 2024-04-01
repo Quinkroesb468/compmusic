@@ -2,11 +2,13 @@
 title: "Analysis of Genre Audio Features"
 output: 
   flexdashboard::flex_dashboard:
+    storyboard: true
     css: dashboard-styles.css
     theme: simplex
     social: menu
     source: embed
 ---
+
 
 ```{r setup, include=FALSE}
 library(flexdashboard)
@@ -21,6 +23,8 @@ library(purrr)
 library(compmus)
 library(randomForest)
 library(caret)
+library(corrplot)
+library(pROC)
 ```
 
 
@@ -51,86 +55,6 @@ muted_colors <- c('Afro House' = '#377eb8',  # Muted blue
 ```
 
 
-# Decoding the Dance Floor: Machine Learning Insights into House Subgenres
-
-Column {data-width=750 .plot-column}
--------
-
-```{r}
-
-# Set seed for reproducibility
-set.seed(123)
-
-# Define the target and features
-target <- "genre"
-selected_features <- c("danceability", "energy", "key", "loudness", "mode", 
-                       "speechiness", "acousticness", "instrumentalness", 
-                       "liveness", "valence", "tempo")
-
-# Splitting the data into training and testing sets
-indexes <- createDataPartition(all_audio_features_df[[target]], p = .8, list = FALSE)
-train_data <- all_audio_features_df[indexes, ]
-test_data <- all_audio_features_df[-indexes, ]
-
-# Select only the desired features plus the target variable for both sets
-train_data_selected <- train_data[, c(target, selected_features)]
-test_data_selected <- test_data[, c(target, selected_features)]
-
-# Convert genre to a factor
-train_data_selected[[target]] <- as.factor(train_data_selected[[target]])
-test_data_selected[[target]] <- as.factor(test_data_selected[[target]])
-
-# Train the Random Forest model on the selected features
-rf_model <- randomForest(as.formula(paste(target, "~ .")), data=train_data_selected, 
-                         importance=TRUE, ntree=500)
-
-varImpPlot(rf_model, type=2, main="Feature Importance")
-
-```
-
-
-Column {data-width=500 .discussion-column}
--------
-
-```{r}
-
-# Predictions on the test set
-predictions <- predict(rf_model, newdata=test_data_selected)
-
-# Evaluation with confusion matrix
-confusion <- confusionMatrix(predictions, test_data_selected[[target]])
-
-# Print the confusion matrix
-print(confusion)
-
-# Extract overall accuracy from the confusion matrix
-accuracy <- confusion$overall['Accuracy']
-
-
-
-
-
-
-
-
-```
-
-
-Column {data-width=400 .discussion-column}
--------
-```{r}
-cat(sprintf("Accuracy: %.2f%%", accuracy * 100))
-```
-
-This analysis employs a Random Forest algorithm to explore genre classification. We've trained our model to differentiate between the nuances of Afro House, Deep House, and Melodic House, drawing insight from a diverse range of audio features. By analyzing elements like tempo, energy, danceability, and more, we seek to pinpoint the factors that determine a song's genre assignment.
-
-The Random Forest model achieves a solid accuracy of 76.36%. This demonstrates its ability to correctly identify genres more often than not, offering a useful tool for music analysis and classification. Removing features based on the feature selection did not improve the accuracy so therefore I have included all of the features.
-
-Our feature importance plot reveals the most influential variables in the model's decision-making. Unsurprisingly, tempo stands as a key factor, confirming the importance of BPM in electronic music genres. Interestingly, instrumentalness and speechiness also contribute significantly, highlighting the complex interplay of elements in genre definition.
-
-Overall, the classifier's performance and these insights help us dissect the characteristic elements of house music subgenres. Such understanding could potentially improve music recommendation systems and offer guidance for music production.
-
-
 # Introduction of Corpus
 
 My corpus is a collection with songs of three different genres, namely: Afro House, Deep House, and Melodic House. These genres are all subgenres of house, which makes them interesting to study to find out what distinguishes these genres. Each genre has its own unique blend of rhythm, melodies, and textures which make them very suitable for analysis.
@@ -142,6 +66,12 @@ My corpus consists of dozens of songs for every genre, aiming for a diverse rang
 Typical songs for each genre are: Ben Bohmer - Beyond Beliefs for Melodic House, Rampa - Champion for Afro House, and Mahalo - Home for Deep House, embodying each genre's core values. Atypical songs like Notre Dame - Yumi - edit for Melodic House, Sebjak - Somebody - edit for Afro House, and Hannah Laing - Good Love for Deep House, are chosen for their unusual rhythm and tempo, offering additional insights into each genre.
 
 
+
+
+
+
+
+
 # Harmony in Motion: Exploring Genre Energies and Emotions
 ## Visualization and Description of first visualisation
 
@@ -150,78 +80,45 @@ Column {data-width=750 .plot-column}
 
 ```{r, align='center'}	
 
-# Plotting the graph
-ggplot(all_audio_features_df, aes(x = energy, y = valence, color = genre)) +
-  geom_point() +
-  labs(title = "Energy vs Valence by Genre",
+# Plotting energy vs valence for each genre in separate panels
+ggplot(all_audio_features_df, aes(x = energy, y = valence)) +
+  geom_point(aes(color = genre)) +  # Color points by genre
+  facet_wrap(~ genre) +  # Create a separate plot for each genre
+  labs(title = "Energy vs Valence for Each Genre",
        x = "Energy",
        y = "Valence",
        color = "Genre") +
-  scale_color_manual(values = muted_colors) +  # Use the muted colors here
+  scale_color_manual(values = c('Afro House' = 'blue', 'Deep House' = 'red', 'Melodic House' = 'green')) +
   theme_minimal() +
-  theme(legend.position = "right")
+  theme(legend.position = "right",
+        strip.background = element_blank(),  
+        strip.text = element_text(size = 12))  
+genre_stats <- all_audio_features_df %>%
+  group_by(genre) %>%
+  summarise(
+    energy_mean = mean(energy),
+    energy_sd = sd(energy),
+    valence_mean = mean(valence),
+    valence_sd = sd(valence)
+  )
 ```
 
-Column {data-width=250 .discussion-column}
+Column {data-width=500 .discussion-column}
 -------
 
-This plot is a scatterplot displaying the relationship between 'Energy' and 'Valence' for the three different genres of music: Afro House, Deep House, and Melodic House. Each panel represents one of the genres, plotted with 'Energy' on the x-axis and 'Valence' on the y-axis. The data points for Afro House are colored blue, for Deep House they are red, and for Melodic House they are green. The spread of data points in each genre-specific panel indicates the distribution of the tracks according to their energy and valence characteristics within that genre.
+This scatterplot shows how energy and emotional 'mood' vary across Afro House, Deep House, and Melodic House. Energy is on the horizontal axis, and 'valence' (meaning a track's positivity) is on the vertical.
 
-It is interesting to see how the three different genres I chose for my analysis compare in terms of their energy and valence. This plot provides insights into the emotional characteristics of each genre. For example, we can visually conclude that Melodic House is considered the least positive of the three genres according to Spotify. This makes sense since it's the more emotional genre.
+Afro House has a cluster of points with medium to high energy, and its mood ranges widely.  This means Afro House can be anything from low-key to super upbeat, all while keeping its signature rhythm.
+
+Deep House (in red) tends to stay high-energy, but with a medium emotional range. This means it's consistently good for dancing, with moods from neutral to quite positive.
+
+Melodic House is different, with mostly lower energy and mood levels. This suggests it's more about thoughtful listening than getting pumped up.
+
+Overall, this chart shows how each subgenre has its own feel. Afro House is the most versatile, Deep House is reliably danceable, and Melodic House offers a deeper, more reflective experience.
 
 
 
-# Sonic Spectrum: Mapping Pitch Class Intensity Over Time
-## Visualisation
-
-Column {data-width=750 .plot-column}
--------
-
-```{r, align='center'}
-track_id <- "1MvLmHeLkaNgUScgbUVnWJ"
-audio_analysis <- get_tidy_audio_analysis(track_id)
-
-# Select and unnest segments, then select start, duration, and pitches
-chroma_data <-
-  audio_analysis %>%
-  select(segments) %>%
-  unnest(segments) %>%
-  select(start, duration, pitches)
-
-# Process and plot chroma data
-chroma_plot <- 
-  chroma_data %>%
-  mutate(pitches = map(pitches, compmus_normalise, "euclidean")) %>% 
-  compmus_gather_chroma() %>%
-  ggplot(
-    aes(
-      x = start + duration / 2,
-      width = duration,
-      y = pitch_class,
-      fill = value
-    )
-  ) +
-  geom_tile() +
-  labs(
-    x = "Time (s)", 
-    y = NULL, 
-    fill = "Magnitude", 
-    title = "Chroma Features Over Time for \nfor 'Breathing' by Ben Bohmer"
-  ) +
-  theme_minimal() +
-  scale_fill_viridis_c()
-
-# Print the plot
-print(chroma_plot)
-
-```
-
-Column {data-width=250 .discussion-column}
--------
-
-This plot is a heatmap that visualizes the intensity of pitch classes over time within the song "Breathing" by Ben Böhmer. The choice for this song was not because it was a pitch related outlier, but because it was a tempo related outlier. The horizontal axis represents time in seconds, and the vertical axis indicates the pitch classes. Intensity levels are depicted through a color gradient, transitioning from blue for lower intensities to yellow for higher intensities. 
-
-# Histograms of keys for the genres
+# Key Signatures and Genre Dynamics
 ## Visualisation
 
 Column {data-width=500 .plot-column}
@@ -291,72 +188,6 @@ The preference for these keys suggests that artists and producers are likely to 
 
 
 
-
-# Self-similarity for Chroma and Timbre
-## Visualisation
-
-Column {data-width=750 .plot-column}
--------
-
-```{r}
-track_audio_analysis <- get_tidy_audio_analysis(track_id) 
-
-
-# Example adapted for your selected track (assuming 'track_audio_analysis' contains your data)
-bzt <- track_audio_analysis |>
-  compmus_align(bars, segments) |>
-  select(bars) |>
-  unnest(bars) |>
-  mutate(
-    pitches = map(segments, compmus_summarise, pitches, method = "acentre", norm = "manhattan"),
-    timbre = map(segments, compmus_summarise, timbre, method = "mean")
-  )
-
-# Create self-similarity matrices for both chroma and timbre
-ssm_data <- bind_rows(
-  bzt |> compmus_self_similarity(pitches, "aitchison") |> mutate(d = d / max(d), type = "Chroma"),
-  bzt |> compmus_self_similarity(timbre, "euclidean") |> mutate(d = d / max(d), type = "Timbre")
-)
-
-# Plotting
-# Assuming ssm_data is already defined and contains the data for plotting
-# Assuming ssm_data is already defined and contains the data for plotting
-ssm_data |>
-  ggplot(
-    aes(
-      x = xstart + xduration / 2,
-      y = ystart + yduration / 2,
-      width = xduration,
-      height = yduration,
-      fill = d
-    )
-  ) +
-  geom_tile() +
-  facet_wrap(~type) +
-  scale_fill_viridis_c(option = "E", guide = "none") +
-  theme_minimal() +
-  theme(
-    strip.text.x = element_text(size = 10),
-    plot.title.position = "plot",
-      # Use this if you do not want to show any axis ticks
-  ) +
-  labs(
-    title = "Self-Similarity Matrices for Chroma and Timbre\nfor 'Breathing' by Ben Bohmer",
-    x = "Time (s)",  # Label for x-axis
-    y = "Time (s)"   # Label for y-axis
-  ) +
-  coord_fixed(ratio = 1)  # This enforces a 1:1 aspect ratio
-
-
-
-```
-
-Column {data-width=250 .discussion-column}
--------
-
-These are the self-similarity matrices for Chroma and Timbre for our tempo outlier 'Breathing' by Ben Bohmer.
-
-
 # The Heartbeat of House: Tempo as Genre Signature
 ## Visualisation
 
@@ -422,3 +253,317 @@ In electronic music, a track's tempo is its pulse – the driving force that set
 - **Melodic House**: At an average of 123 BPM, Melodic House finds a middle ground between the other two subgenres. The tempo allows space for both reflective moments and upbeat dance sequences. This complements the genre's focus on emotive melodies and atmospheric soundscapes, creating a vibe that's captivating for both listeners and dancers.
 
 From the vibrant energy of Afro House to the pulsating power of Deep House and the evocative soundscapes of Melodic House,  tempo plays a crucial role in shaping the unique feel of each subgenre.
+
+
+
+# Dynamics of Volume: Loudness Across Genres
+## Visualization
+
+
+Column {data-width=750 .plot-column}
+-------
+
+
+```{r}
+# Prepare data for plotting
+loudness_data <- all_audio_features_df %>%
+  select(genre, loudness) %>%
+  mutate(genre = factor(genre, levels = c('Afro House', 'Deep House', 'Melodic House')))
+
+# Create a boxplot to compare the loudness distribution
+loudness_plot <- ggplot(loudness_data, aes(x = genre, y = loudness, fill = genre)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Loudness Across Genres",
+       x = "Genre",
+       y = "Loudness (dB)") +
+  scale_fill_manual(values = muted_colors) +
+  theme_minimal() +
+  theme(legend.position = "none")  # Hide the legend if not necessary
+
+# Print the plot
+print(loudness_plot)
+
+
+```
+
+Column {data-width=500 .discussion-column}
+-------
+
+This boxplot shows that Deep House stands out for its consistently loud sound. Producers clearly favor a powerful, attention-grabbing style – perfect for the energy of dance floors and clubs.
+
+Afro House and Melodic House share a more moderate volume level. This suggests these genres value a wider range of dynamics instead of always blasting at maximum volume. It also highlights a shared stylistic approach between them.
+
+The small IQR for Deep House reveals that most tracks have a similar, consistently loud mix, designed for environments where a strong audio presence is needed. Afro and Melodic House, with their wider ranges and outlier tracks, seem to explore a greater variety of sounds. They might include softer, more introspective songs alongside the more energetic ones. This shows how diverse these genres can be, from the rhythmic focus of Afro House to the emotional soundscapes of Melodic House.
+
+
+
+# Harmonic Landscape: Decoding Key Signature in 'Breathing' by Ben Böhmer
+
+## Visualisation
+
+Column {data-width=750 .plot-column}
+-------
+
+```{r, align='center'}
+track_id <- "1MvLmHeLkaNgUScgbUVnWJ"
+audio_analysis <- get_tidy_audio_analysis(track_id)
+
+# Select and unnest segments, then select start, duration, and pitches
+chroma_data <-
+  audio_analysis %>%
+  select(segments) %>%
+  unnest(segments) %>%
+  select(start, duration, pitches)
+
+# Process and plot chroma data
+chroma_plot <- 
+  chroma_data %>%
+  mutate(pitches = map(pitches, compmus_normalise, "euclidean")) %>% 
+  compmus_gather_chroma() %>%
+  ggplot(
+    aes(
+      x = start + duration / 2,
+      width = duration,
+      y = pitch_class,
+      fill = value
+    )
+  ) +
+  geom_tile() +
+  labs(
+    x = "Time (s)", 
+    y = NULL, 
+    fill = "Magnitude", 
+    title = "Chroma Features Over Time for \nfor 'Breathing' by Ben Bohmer"
+  ) +
+  theme_minimal() +
+  scale_fill_viridis_c()
+
+# Print the plot
+print(chroma_plot)
+
+```
+
+Column {data-width=500 .discussion-column}
+-------
+
+The chroma plot of Ben Böhmer's 'Breathing' reveals a fascinating story of how its harmonies work within the key of B minor.  Key signatures set a song's emotional tone, and B minor often brings a sense of melancholy and power – a mood that fits well with 'Breathing'.
+
+As the plot shows, the notes of B minor are strongly emphasized. B, E and G, the core notes of B minor, are especially prominent. Their visual 'peaks' could mark moments of tension and release,  influenced by the song's unusual tempo and rhythm.
+
+Interestingly, the plot also shows notes that fall outside the traditional B minor scale. This suggests that the song uses modal interchange and chromaticism, adding layers of complexity. So, while B minor is the overall 'home' of the track, it also allows for exploration beyond the expected notes.
+
+The unique tempo of 'Breathing' probably influences these harmonic explorations. The unusual rhythm might create unusual timing for chord changes and emphasis on individual notes. This contributes to the song's emotional depth and makes it a standout within Melodic House.
+
+
+
+# Echoes of Harmony: Chroma and Timbre in the Pulse of 'Breathing'
+## Visualisation
+
+Column {data-width=750 .plot-column}
+-------
+
+```{r}
+track_audio_analysis <- get_tidy_audio_analysis(track_id) 
+
+
+# Example adapted for your selected track (assuming 'track_audio_analysis' contains your data)
+bzt <- track_audio_analysis |>
+  compmus_align(bars, segments) |>
+  select(bars) |>
+  unnest(bars) |>
+  mutate(
+    pitches = map(segments, compmus_summarise, pitches, method = "acentre", norm = "manhattan"),
+    timbre = map(segments, compmus_summarise, timbre, method = "mean")
+  )
+
+# Create self-similarity matrices for both chroma and timbre
+ssm_data <- bind_rows(
+  bzt |> compmus_self_similarity(pitches, "aitchison") |> mutate(d = d / max(d), type = "Chroma"),
+  bzt |> compmus_self_similarity(timbre, "euclidean") |> mutate(d = d / max(d), type = "Timbre")
+)
+
+# Plotting
+# Assuming ssm_data is already defined and contains the data for plotting
+# Assuming ssm_data is already defined and contains the data for plotting
+ssm_data |>
+  ggplot(
+    aes(
+      x = xstart + xduration / 2,
+      y = ystart + yduration / 2,
+      width = xduration,
+      height = yduration,
+      fill = d
+    )
+  ) +
+  geom_tile() +
+  facet_wrap(~type) +
+  scale_fill_viridis_c(option = "E", guide = "none") +
+  theme_minimal() +
+  theme(
+    strip.text.x = element_text(size = 10),
+    plot.title.position = "plot",
+      # Use this if you do not want to show any axis ticks
+  ) +
+  labs(
+    title = "Self-Similarity Matrices for Chroma and Timbre\nfor 'Breathing' by Ben Bohmer",
+    x = "Time (s)",  # Label for x-axis
+    y = "Time (s)"   # Label for y-axis
+  ) +
+  coord_fixed(ratio = 1)  # This enforces a 1:1 aspect ratio
+
+
+
+```
+
+Column {data-width=500 .discussion-column}
+-------
+
+These self-similarity matrices reveal how 'Breathing' by Ben Böhmer uses repeating patterns in both its harmony (chroma) and its overall sound (timbre) to create a sense of identity.
+
+The diagonal squares in the chroma matrix show where the same chords or melodies come back throughout the song. This creates a feeling of structure and familiarity, which ties into the overall mood of B minor that we identified earlier.
+
+The timbre matrix focuses on changes in the track's texture. Darker bands mean certain sounds come back, which creates a feeling of unity.  Lighter areas mean something new – maybe a different instrument, a change in rhythm, or a quieter moment.
+
+The most interesting part is where the two patterns overlap. These spots probably mark the song's most memorable moments, where the catchy melody combines with a signature sound.  Where the patterns don't line up is also important – it could be where the song surprises us to create a sense of tension or release.
+
+It's important to remember that 'Breathing' has an unusual tempo. This definitely affects how we hear those repeating chords and sounds. What might feel subtle at one speed could stand out more at another, which could be why these patterns are so easy to spot in these matrices.
+
+
+
+
+
+
+
+# Decoding the Dance Floor: Machine Learning Insights into House Subgenres
+
+Column {data-width=750 .plot-column}
+-------
+
+```{r}
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Define the target and features
+target <- "genre"
+selected_features <- c("danceability", "energy", "key", "loudness", "mode", 
+                       "speechiness", "acousticness", "instrumentalness", 
+                       "liveness", "valence", "tempo")
+
+# Splitting the data into training and testing sets
+indexes <- createDataPartition(all_audio_features_df[[target]], p = .8, list = FALSE)
+train_data <- all_audio_features_df[indexes, ]
+test_data <- all_audio_features_df[-indexes, ]
+
+# Select only the desired features plus the target variable for both sets
+train_data_selected <- train_data[, c(target, selected_features)]
+test_data_selected <- test_data[, c(target, selected_features)]
+
+# Convert genre to a factor
+train_data_selected[[target]] <- as.factor(train_data_selected[[target]])
+test_data_selected[[target]] <- as.factor(test_data_selected[[target]])
+
+# Train the Random Forest model on the selected features
+rf_model <- randomForest(as.formula(paste(target, "~ .")), data=train_data_selected, 
+                         importance=TRUE, ntree=500)
+
+
+varImpPlot(rf_model, type=2, main="Feature Importance")
+
+
+
+```
+
+
+Column {data-width=500 .discussion-column}
+-------
+
+```{r}
+
+# Predictions on the test set
+predictions <- predict(rf_model, newdata=test_data_selected)
+
+# Evaluation with confusion matrix
+confusion <- confusionMatrix(predictions, test_data_selected[[target]])
+
+# Print the confusion matrix
+print(confusion)
+
+# Extract overall accuracy from the confusion matrix
+accuracy <- confusion$overall['Accuracy']
+
+```
+
+```{r, fig.height=4, fig.width=5}
+
+# Confusion matrix plot using caret and ggplot2
+conf_matrix <- as.table(confusion$table)
+ggplot(data = as.data.frame(conf_matrix), 
+       aes(x = Reference, y = Prediction)) +
+  geom_tile(aes(fill = Freq), colour = "white") +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1) +
+  labs(x = "Actual", y = "Predicted", fill = "Frequency") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+```
+
+
+Column {data-width=500 .discussion-column}
+-------
+```{r}
+cat(sprintf("Accuracy: %.2f%%", accuracy * 100))
+```
+
+This analysis employs a Random Forest algorithm to explore genre classification. I've trained my model to differentiate between the nuances of Afro House, Deep House, and Melodic House, drawing insight from a diverse range of audio features. By analyzing elements like tempo, energy, danceability, and more, I seek to pinpoint the factors that determine a song's genre assignment.
+
+The Random Forest model achieves a solid accuracy of 76.36%. This demonstrates its ability to correctly identify genres more often than not, offering a useful tool for music analysis and classification. Removing features based on the feature selection did not improve the accuracy so therefore I have included all of the features.
+
+The feature importance plot reveals the most influential variables in the model's decision-making. Unsurprisingly, tempo stands as a key factor, confirming the importance of BPM in electronic music genres. Interestingly, instrumentalness and speechiness also contribute significantly, highlighting the complex interplay of elements in genre definition.
+
+Overall, the classifier's performance and these insights help us dissect the characteristic elements of house music subgenres. Such understanding could potentially improve music recommendation systems and offer guidance for music production.
+
+
+
+# Conclusion
+
+
+**Introduction of the Corpus**
+
+This study has been a detailed exploration of Afro House, Deep House, and Melodic House.  Using Spotify's music catalog, we've analyzed the rhythms, melodies, and textures that give each genre its flavor.  Our diverse collection of tracks highlighted the energy of Afro House, the soulfulness of Deep House, and the  dreamy soundscapes of Melodic House. Focusing on current music, while acknowledging its limitations, gives a vibrant snapshot of where these genres stand today.
+
+**Harmony in Motion**
+
+Visualizing energy and emotion across the genres revealed their  unique landscapes. Afro House soared to high-energy, while Melodic House often explored quieter moods. This shows how each genre offers a range of listening experiences.
+
+**Key Signatures and Genre Dynamics**
+
+Our analysis found that certain musical keys tend to appear more frequently within each genre. C# added to Afro House's excitement, while G shaped Deep House's sound.  This highlights how subtle choices in music theory impact the overall mood.
+
+**The Heartbeat of House**
+
+Tempo proved itself essential to these genres. Afro House's fast beats get us moving, while Melodic House's moderate tempos invite both introspection and dance.
+
+**Dynamics of Volume**
+
+Deep House stood out for its consistently loud volume, while Afro House and Melodic House used a wider range. This suggests these genres can include both energetic tracks and more mellow moments.
+
+**Harmonic Landscape**
+
+We took a deep dive into 'Breathing', using a chroma plot to show its stunning use of B minor.  Modal interchange and chromaticism added depth to its somber, yet powerful, sound.
+
+**Echoes of Harmony**
+
+Self-similarity matrices revealed recurring patterns in 'Breathing's' harmony and overall sound – the building blocks of its identity. Analyzing these patterns helps us appreciate how  the track creates its distinct journey.
+
+**Decoding the Dance Floor**
+
+Machine learning proved its power! With 76.36% accuracy, our model successfully identified a track's genre based on audio features alone.  Tempo  again stood out as a defining characteristic of electronic music styles.
+
+**Conclusion**
+
+This study has shown how complex and varied house music subgenres can be. By analyzing specific examples, we've gained insights into the patterns that make up these genres. More importantly, this work reminds us that beyond the beats and the keys, house music is about feeling, with the power to move both the soul and the body. This exploration inspires us to keep studying the ever-changing world of house music with a data-driven approach.
